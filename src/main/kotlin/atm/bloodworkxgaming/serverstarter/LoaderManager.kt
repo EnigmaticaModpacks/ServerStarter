@@ -298,8 +298,26 @@ class LoaderManager(private val configFile: ConfigFile, private val internetMana
         .replace("{{@mcversion@}}", lockFile.mcVersion)
         .replace("{{@os@}}", if (OSUtil.isWindows) "win" else "unix")
 
+    private fun tryToCopyLatestLogToPreviousLog() {
+        val basepath = configFile.install.baseInstallPath
+
+        val logDirectory = File(basepath + "logs")
+        if (!logDirectory.exists())
+            return
+
+        val latestLog = File(basepath + "logs/latest.log")
+        if (!latestLog.exists())
+            return
+
+        val previousLog = File(basepath + "logs/previous.log")
+        if (previousLog.exists())
+            previousLog.delete()
+
+        latestLog.copyTo(previousLog)
+    }
 
     private fun startAndWaitForProcess(args: List<String>) {
+        tryToCopyLatestLogToPreviousLog()
         ProcessBuilder(args).apply {
             inheritIO()
             directory(File(configFile.install.baseInstallPath + "."))
