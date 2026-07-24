@@ -20,10 +20,14 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
       - name: Build release zip
         env:
           CURSEFORGE_API_KEY: ${{ secrets.CURSEFORGE_API_KEY }}
-        run: ./gradlew zipDist
+        run: ./gradlew zipDist -PreleaseVersion=${{ steps.version.outputs.version }}
         
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
