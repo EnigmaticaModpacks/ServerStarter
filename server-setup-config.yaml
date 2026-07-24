@@ -131,6 +131,11 @@ install:
   # Only increase this timer if you have problems
   readTimeout: 30
 
+  # CurseForge now requires an API key for downloads from their CDN (media/edge.forgecdn.net, curseforge.com).
+  # ServerStarter ships with a built-in key, so this can usually be left as is.
+  # Only set this if you want to use your own key, e.g. one from https://console.curseforge.com/ (Api Keys section).
+  curseforgeApiKey: ~
+
 
 
 # settings regarding the launching of the pack

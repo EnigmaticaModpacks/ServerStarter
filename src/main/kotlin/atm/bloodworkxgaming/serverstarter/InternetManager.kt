@@ -10,10 +10,26 @@ import java.io.File
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 
+private val CURSEFORGE_CDN_HOSTS = listOf("forgecdn.net", "curseforge.com")
+
+fun isCurseforgeCdnHost(host: String): Boolean =
+    CURSEFORGE_CDN_HOSTS.any { host == it || host.endsWith(".$it") }
+
 class InternetManager(private val configFile: ConfigFile) {
     val httpClient = OkHttpClient.Builder()
         .connectTimeout(configFile.install.connectTimeout, TimeUnit.SECONDS)
         .readTimeout(configFile.install.readTimeout, TimeUnit.SECONDS)
+        .addNetworkInterceptor { chain ->
+            val req = chain.request()
+            val host = req.url.host
+
+            val apiKey = configFile.install.curseforgeApiKey.ifBlank { BuildSecrets.CURSEFORGE_API_KEY }
+            if (apiKey.isNotBlank() && isCurseforgeCdnHost(host)) {
+                chain.proceed(req.newBuilder().header("x-api-key", apiKey).build())
+            } else {
+                chain.proceed(req)
+            }
+        }
         .build()
 
 

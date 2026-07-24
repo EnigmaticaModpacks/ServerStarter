@@ -72,6 +72,8 @@ data class InstallConfig(
     var spongeBootstrapper: String = "",
     var connectTimeout: Long = 30,
     var readTimeout: Long = 30,
+
+    var curseforgeApiKey: String = "",
 ) {
 
 
