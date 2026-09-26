@@ -20,6 +20,8 @@ import kotlin.math.max
 class DownloadLoaderException(message: String, exception: Exception) : IOException(message, exception)
 
 class LoaderManager(private val configFile: ConfigFile, private val internetManager: InternetManager) {
+    private val javaManager = JavaManager(configFile, internetManager)
+    private val effectiveJavaPath: String by lazy { computeEffectiveJavaPath() }
 
     fun handleServer() {
         val startTimes = ArrayList<LocalDateTime>()
@@ -137,8 +139,7 @@ class LoaderManager(private val configFile: ConfigFile, private val internetMana
 
             LOGGER.info("Starting installation of Loader, installer output incoming")
             LOGGER.info("Check log for installer for more information", true)
-            val java =
-                if (configFile.launch.forcedJavaPath.isEmpty()) "java" else configFile.launch.processedForcedJavaPath
+            val java = effectiveJavaPath
             val installer = ProcessBuilder(
                 java,
                 "-jar",
@@ -228,8 +229,7 @@ class LoaderManager(private val configFile: ConfigFile, private val internetMana
                 arguments.addAll(configFile.launch.preJavaArgs.trim().split(' ').dropWhile { it.isEmpty() })
             }
 
-            val java =
-                if (configFile.launch.forcedJavaPath.isEmpty()) "java" else configFile.launch.processedForcedJavaPath
+            val java = effectiveJavaPath
             val processedArguments = configFile.launch.javaArgs.map(::replacePlaceholders)
 
             arguments.add(java)
@@ -288,6 +288,81 @@ class LoaderManager(private val configFile: ConfigFile, private val internetMana
             LOGGER.error("Error while starting the server", e)
         }
 
+    }
+
+    /**
+     * Finds the correct java path depending on the config, either:
+     * 1. Forced java path
+     * 2. correct jvm version on the $PATH
+     * 3. 'java'
+     */
+    private fun computeEffectiveJavaPath(): String = when {
+        configFile.launch.forcedJavaPath.isNotBlank() -> configFile.launch.processedForcedJavaPath
+        configFile.launch.supportedJavaVersions.isNotEmpty() -> {
+            // Find the best suitable java version
+            LOGGER.info("Attempting to find suitable jvm for supported version ${configFile.launch.supportedJavaVersions}")
+
+            val command = if (OSUtil.isWindows) {
+                arrayOf("where", "java")
+            } else {
+                arrayOf("which", "-a", "java")
+            }
+            try {
+                val path = runProcessCapturingOutput(command)
+                    .lines()
+                    .filter { it.isNotBlank() }
+                    .firstOrNull { path ->
+                        val text = runProcessCapturingOutput(arrayOf(path, "-version"))
+                        configFile.launch.supportedJavaVersions
+                            .any { text.contains(Regex("\"(1\\.)?${Regex.escape(it)}(?:[.\"]|$)")) }
+                    }
+
+                if (path == null) {
+                    LOGGER.warn("Couldn't find any JVM installation matching the supported versions on PATH.")
+                    val downloadedJava = configFile.launch.supportedJavaVersions.firstOrNull()
+                        ?.let { javaManager.obtainJava(it) }
+
+                    if (downloadedJava == null) {
+                        LOGGER.warn("Falling back to 'java', but this might fail.")
+                        "java"
+                    } else {
+                        downloadedJava.replace("\\", "/")
+                    }
+                } else {
+                    LOGGER.info("Found suitable JVM at path $path.")
+                    path.replace("\\", "/")
+                }
+            } catch (e: Exception) {
+                LOGGER.error("Couldn't find jvm, falling back to 'java'", e)
+                "java"
+            }
+        }
+        else -> "java"
+    }
+
+    /**
+     * Runs a process with merged stdout/stderr, waits with a timeout, and forcibly
+     * destroys it if it exceeds that timeout, so a hung probe never blocks startup.
+     */
+    private fun runProcessCapturingOutput(command: Array<String>, timeoutSeconds: Long = 10): String {
+        val process = ProcessBuilder(*command)
+            .redirectErrorStream(true)
+            .start()
+
+        val outputFuture = java.util.concurrent.CompletableFuture.supplyAsync {
+            process.inputStream.bufferedReader().use { it.readText() }
+        }
+
+        val finished = process.waitFor(timeoutSeconds, java.util.concurrent.TimeUnit.SECONDS)
+        if (!finished) {
+            process.destroyForcibly()
+        }
+
+        return try {
+            outputFuture.get(2, java.util.concurrent.TimeUnit.SECONDS)
+        } catch (e: Exception) {
+            ""
+        }
     }
 
     /**
