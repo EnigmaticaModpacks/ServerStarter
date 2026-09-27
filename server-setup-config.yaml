@@ -197,6 +197,18 @@ launch:
   # It also supports replacing with environment variables with ${ENV_VAR} e.g. ${JAVA_HOME}/bin/java.exe
   forcedJavaPath: ~
 
+  # If you aren't sure what the java path is you can let serverstarter attempt to find the correct JVM
+  # For this you need to have all available JVMs on the PATH
+  # -> MC 1.12 to 1.16 requires java [8, 9, 10, 11]
+  # -> MC 1.17+ requires java [17] or higher depending on the modpack (e.g. Cleanroom needs [25])
+  supportedJavaVersions: []
+
+  # If no matching JVM (see supportedJavaVersions above) is found on PATH, serverstarter can
+  # download one automatically from Eclipse Adoptium (https://adoptium.net) into a local folder.
+  # The first entry of supportedJavaVersions is used as the version to download.
+  # You will be prompted for confirmation before anything is downloaded.
+  autoDownloadJava: false
+
   # Java args that are supposed to be used when the server launches
   # keep in mind java args often need ' - ' in front of it to work, use clarifying parentheses to make sure it uses it correctly
   # Keep in mind that some arguments only work on JRE 1.8

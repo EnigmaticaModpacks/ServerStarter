@@ -33,6 +33,8 @@ data class LaunchSettings(
     var preJavaArgs: String = "",
 
     var forcedJavaPath: String = "",
+    var supportedJavaVersions: List<String> = Collections.emptyList(),
+    var autoDownloadJava: Boolean = false,
 
     ) {
     val processedForcedJavaPath: String
